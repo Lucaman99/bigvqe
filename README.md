@@ -1,2 +1,2 @@
 # bigvqe
-Big VQE
+Big VQE energy
