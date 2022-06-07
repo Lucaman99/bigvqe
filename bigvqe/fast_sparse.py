@@ -111,6 +111,61 @@ from tqdm.notebook import tqdm
 from openfermion.chem.molecular_data import spinorb_from_spatial
 
 
+def spinorb(one_elec):
+    n_qubits = 2 * one_elec.shape[0]
+
+    one_body_coefficients = np.zeros((n_qubits, n_qubits))
+
+    for p in range(n_qubits // 2):
+        for q in range(n_qubits // 2):
+
+            one_body_coefficients[2 * p, 2 * q] = one_elec[p, q]
+            one_body_coefficients[2 * p + 1, 2 * q +
+                                  1] = one_elec[p, q]
+    return one_body_coefficients
+
+
+def generate_one_elec_sparse(one_elec):
+    one_elec_s = spinorb(one_elec)
+
+    size = one_elec_s.shape[0]
+
+    data_arr = []
+    row_arr = []
+    col_arr = []
+
+    # Generates one electron terms
+    for i in range(size):
+        for j in range(size):
+            coeff1 = one_elec_s[i][j]
+            coeff2 = one_elec_s[j][i]
+
+            if any([coeff1, coeff2]) and i <= j:
+                data, rows, cols = apply_fermion([i, j], [0, 1], size)
+
+                if i < j:
+                    data_arr.append(coeff1 * data)
+                    row_arr.append(rows)
+                    col_arr.append(cols)
+
+                    data_arr.append(coeff2 * data)
+                    row_arr.append(cols)
+                    col_arr.append(rows)
+                else:
+                    data_arr.append(coeff1 * data)
+                    row_arr.append(rows)
+                    col_arr.append(cols)
+    
+    if len(data_arr) > 0:
+        final_arr = np.concatenate(data_arr)
+        final_row = np.concatenate(row_arr)
+        final_col = np.concatenate(col_arr)
+    else:
+        final_arr, final_row, final_col = [], [], []
+
+    return final_arr, final_row, final_col, size
+
+
 def generate_sparse(one_elec, two_elec):
     one_elec_s, two_elec_s = openfermion.chem.molecular_data.spinorb_from_spatial(one_elec, two_elec)
     two_elec_s = (1 / 2) * two_elec_s
@@ -160,9 +215,12 @@ def generate_sparse(one_elec, two_elec):
                         row_arr.append(rows)
                         col_arr.append(cols)
 
-    final_arr = np.concatenate(data_arr)
-    final_row = np.concatenate(row_arr)
-    final_col = np.concatenate(col_arr)
+    if len(data_arr) > 0:
+        final_arr = np.concatenate(data_arr)
+        final_row = np.concatenate(row_arr)
+        final_col = np.concatenate(col_arr)
+    else:
+        final_arr, final_row, final_col = [], [], []
 
     return final_arr, final_row, final_col, size
 
@@ -173,3 +231,7 @@ def sparse_H(one_elec, two_elec, const=None):
         return coo_matrix(scipy.sparse.csr_matrix((final_arr, (final_row, final_col)), shape=(2 ** size, 2 ** size)) + const * scipy.sparse.identity(2 ** size))
     else:
         return coo_matrix((final_arr, (final_row, final_col)), shape=(2 ** size, 2 ** size))
+
+def one_elec_sparse(one_elec):
+    final_arr, final_row, final_col, size = generate_one_elec_sparse(one_elec) 
+    return coo_matrix((final_arr, (final_row, final_col)), shape=(2 ** size, 2 ** size))
