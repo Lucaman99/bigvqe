@@ -1,2 +1,4 @@
 # bigvqe
-Big VQE energy
+Faster sparse molecular Hamiltonians
+
+<img src="speed.png">
